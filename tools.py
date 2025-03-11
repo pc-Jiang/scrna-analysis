@@ -1,3 +1,7 @@
+import numpy as np
+import pandas as pd
+
+
 def filter_genes_by_expression(data, threshold=0.1):
     """Filter genes by expression level."""
     min_expressed_cells = int(threshold * data.shape[0])  # Number of cells required
@@ -34,3 +38,92 @@ def filter_cells_by_dict(adata, metadata, filter_dict):
     for key, value in filter_dict.items():
         new_adata, new_metadata = filter_cells_by_anaotation(new_adata, new_metadata, key, value)
     return new_adata, new_metadata
+
+
+def print_column_info(df):
+    
+    for c in df.columns:
+        grouped = df[[c]].groupby(c).count()
+        members = ''
+        if len(grouped) < 30:
+            members = str(list(grouped.index))
+        print("Number of unique %s = %d %s" % (c, len(grouped), members))
+
+
+def name_with_index(query_names, name_list):
+    query_names_with_index = []
+    for query in query_names:
+        for name in name_list:
+            if query in name:
+                query_names_with_index.append(name)
+
+    return query_names_with_index
+
+
+def assign_binary_regression_labels(adata, metadata, assign_list):
+    """Assign regression labels to the metadata.
+    Input:
+        adata: AnnData object
+        metadata: pd.DataFrame
+        assign_list: list of strings in metadata column names
+    """
+    y = np.zeros((adata.shape[0], len(assign_list)))
+    for i, assign in enumerate(assign_list):
+        y[:, i] = pd.factorize(metadata[assign])[0]
+
+    adata.obs['regression_labels'] = y
+    return adata
+
+
+def order_loadings_by_shap(shap_values):
+    # Compute mean absolute SHAP value per feature
+    shap_importance = np.abs(shap_values).mean(axis=0)
+
+    # Get sorted indices (most important features first)
+    sorted_indices = np.argsort(-shap_importance)  # Negative sign for descending order
+
+    return sorted_indices
+
+
+def extract_top_genes_from_loadings(adata, loadings, n_genes=1000): # todo
+    """Extract top genes from PCA or NMF loadings.
+    Input:
+        adata: AnnData object
+        loadings: np.array, shape (n_genes, )
+        n_genes: int, number of genes to extract
+    """
+
+    # Get gene names
+    genes = adata.var['gene_symbol']
+
+    # Create a DataFrame with gene names and their PC loadings
+    df = pd.DataFrame({"gene": genes, "loading": loadings})
+
+    # Sort by absolute loading values (descending)
+    df_sorted = df.reindex(df["loading"].abs().sort_values(ascending=False).index)
+    top_genes = df_sorted['gene'][:n_genes]
+
+    return top_genes
+
+
+def is_in_degenes(query_genes, degenes):
+    """Check if query genes are in DE genes."""
+    query_genes = set(query_genes)
+    degenes = set(degenes)
+    return query_genes.intersection(degenes)
+
+
+def detect_degenes_accumulated(adata, loading_idx, degenes, n_genes_per_pc=1000):
+    
+    degenes = set(degenes)
+    total_genes = set()
+    
+    degenes_detected_among_all = []
+    degenes_detected_among_extracted = []
+    for i in loading_idx:
+        top_genes = extract_top_genes_from_loadings(adata, adata.varm["PCs"][:, i], n_genes=n_genes_per_pc)
+        total_genes = total_genes.union(set(top_genes))
+        degenes_detected = is_in_degenes(total_genes, degenes)
+        degenes_detected_among_all.append(len(degenes_detected)/len(degenes))
+        degenes_detected_among_extracted.append(len(degenes_detected)/len(total_genes))
+    return degenes_detected_among_all, degenes_detected_among_extracted
