@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import shap
+import statsmodels.api as sm
 
 
 def filter_genes_by_expression(data, threshold=0.1):
@@ -69,7 +72,10 @@ def assign_binary_regression_labels(adata, metadata, assign_list):
     """
     y = np.zeros((adata.shape[0], len(assign_list)))
     for i, assign in enumerate(assign_list):
-        y[:, i] = pd.factorize(metadata[assign])[0]
+        if metadata[assign].astype(str).str.isnumeric().all():
+            y[:, i] = metadata.reindex(adata.obs.index)['assign']
+        else: 
+            y[:, i] = pd.factorize(metadata[assign])[0]
 
     adata.obs['regression_labels'] = y
     return adata
@@ -127,3 +133,41 @@ def detect_degenes_accumulated(adata, loading_idx, degenes, n_genes_per_pc=1000)
         degenes_detected_among_all.append(len(degenes_detected)/len(degenes))
         degenes_detected_among_extracted.append(len(degenes_detected)/len(total_genes))
     return degenes_detected_among_all, degenes_detected_among_extracted
+
+
+# define function to plot the degene-detected results
+def plot_degene_trend(n_selected_features, 
+                      degenes_detected_among_all, 
+                      degenes_detected_among_extracted, 
+                      acc,
+                      subclass_type,
+                      subclass_name):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot(range(1, n_selected_features+1), degenes_detected_among_all, label='# DE genes / all DE genes')
+    ax.plot(range(1, n_selected_features+1), degenes_detected_among_extracted, label='# DE genes / selected genes')
+    ax.set_xlabel('Number of features selected')
+    ax.set_ylabel('Genes detected ratio')
+    ax.set_ylim(0, 1.05)
+    ax.legend()
+    ax.set_title(f"{subclass_name}: {subclass_type}, Classification accuracy: {acc:.2f}", fontsize=8)
+    plt.tight_layout()
+    plt.show()
+
+
+def shap_importance_analysis(lasso_logreg, adata, max_display=10):
+    # Create a SHAP explainer
+    X = adata.obsm['X_pca']
+    X_with_intercept = sm.add_constant(X)
+    explainer = shap.LinearExplainer(lasso_logreg, X_with_intercept)
+
+    feature_names = ['PC{}'.format(i+1) for i in range(X.shape[1])]
+    feature_names = ['intercept'] + feature_names
+
+    # Get SHAP values for the training data
+    shap_values = explainer.shap_values(X_with_intercept)
+
+    # Plot summary of SHAP values (global feature importance)
+    shap.summary_plot(
+        shap_values, X_with_intercept, feature_names=feature_names, max_display=max_display, plot_size=(4, 4)
+        )
+    return shap_values
