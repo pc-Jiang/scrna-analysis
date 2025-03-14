@@ -15,6 +15,7 @@ Packages required in python 3 environment:
 - numpy
 - pandas
 - scanpy
+- statsmodels
 - anndata
 - scipy
 - shap
