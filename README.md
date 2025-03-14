@@ -12,18 +12,21 @@ Single cell RNA sequence analysis for the public dataset from Allen Brain Cell A
 ## Instructions
 
 Packages required in python 3 environment: 
-- python
+- numpy
 - pandas
 - scanpy
 - anndata
+- scipy
 - shap
+- matplotlib
+- matplotlib-venn
 
 
 Run 'data_download.ipynb' to download 'abc_atlas_access' package and all the data under analysis. 
 
 Run 'age_related_genes_analysis.ipynb' to go through the analysis for detecting aging-related genes. 
 
-Run 'gender_expression_analysis.ipynb' to go through the analysis for gender-specific aging-related gene expression analysis. 
+Run 'gender_ageDE_analysis.ipynb' to go through the analysis for gender-specific aging-related gene expression analysis. 
 
 
 ## Reference
